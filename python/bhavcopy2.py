@@ -15,8 +15,6 @@ end_date = datetime.strptime("2025-08-03", "%Y-%m-%d")
 URL_TEMPLATE = "https://nsearchives.nseindia.com/archives/equities/bhavcopy/pr/PR{date}.zip"
 OUTPUT_DIR = "nse_bhavcopy_output" 
 
-
-
 # ✅ MySQL configuration
 DB_HOST = 'localhost'
 DB_USER = 'root'
