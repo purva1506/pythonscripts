@@ -13,7 +13,9 @@ from sqlalchemy import create_engine
 start_date = datetime.strptime("2009-01-01", "%Y-%m-%d")
 end_date = datetime.strptime("2025-08-03", "%Y-%m-%d")
 URL_TEMPLATE = "https://nsearchives.nseindia.com/archives/equities/bhavcopy/pr/PR{date}.zip"
-OUTPUT_DIR = "nse_bhavcopy_output"
+OUTPUT_DIR = "nse_bhavcopy_output" 
+
+
 
 # ✅ MySQL configuration
 DB_HOST = 'localhost'
