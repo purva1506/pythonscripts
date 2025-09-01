@@ -8,6 +8,7 @@ import os
 import re
 import pymysql
 from sqlalchemy import create_engine
+from urllib.parse import quote_plus   # ✅ for safe password encoding
 
 # --- Config ---
 start_date = datetime.strptime("2025-08-01", "%Y-%m-%d")
@@ -18,8 +19,8 @@ OUTPUT_DIR = "nse_bhavcopy_output"
 # ✅ MySQL connection configuration
 DB_HOST = 'localhost'
 DB_USER = 'root'
-DB_PASSWORD = 'root'
-DB_NAME = 'bhavcopy2'
+DB_PASSWORD = 'Patil@2000'   # your password with '@'
+DB_NAME = 'bhavcopy3'
 DB_PORT = 3306
 
 # --- Expected 13 file types (tables) ---
@@ -38,8 +39,9 @@ conn.commit()
 cursor.close()
 conn.close()
 
-# ✅ Step 3: Connect to the specific database using SQLAlchemy
-engine = create_engine(f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+# ✅ Step 3: Connect to the specific database using SQLAlchemy (safe password encoding)
+encoded_password = quote_plus(DB_PASSWORD)
+engine = create_engine(f"mysql+pymysql://{DB_USER}:{encoded_password}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
 
 HEADERS = {
     'accept': '/',
@@ -69,12 +71,27 @@ def process_zip_for_date(date_obj):
                         # ✅ Normalize table name
                         base = os.path.splitext(os.path.basename(file_name))[0]
                         base = re.sub(r"\d+", "", base).lower()
-
                         found_files.add(base)
 
                         try:
                             with z.open(file_name) as csv_file:
-                                df = pd.read_csv(csv_file, on_bad_lines='skip')
+                                try:
+                                    # First try UTF-8
+                                    df = pd.read_csv(csv_file, on_bad_lines='skip')
+                                except UnicodeDecodeError:
+                                    # Fallback to latin1 if UTF-8 fails
+                                    csv_file.seek(0)
+                                    df = pd.read_csv(csv_file, on_bad_lines='skip', encoding="latin1")
+
+                                # ✅ Clean column names (fix MCAP issue)
+                                df.columns = (
+                                    df.columns
+                                    .str.strip()                              # remove leading/trailing spaces
+                                    .str.replace(r"[^\w]+", "_", regex=True)  # replace non-alphanumeric with "_"
+                                    .str.replace(r"__+", "_", regex=True)     # collapse multiple "_"
+                                    .str.strip("_")                           # remove leading/trailing "_"
+                                )
+
                                 df['source_date'] = date_obj.date()
                                 df['status'] = "OK"
 
