@@ -1,4 +1,5 @@
 import os
+import time
 import pandas as pd
 import yfinance as yf
 
@@ -34,10 +35,14 @@ for idx, symbol in enumerate(symbols, 1):
         if "Date" in df.columns:
             df["Date"] = pd.to_datetime(df["Date"]).dt.date
 
-        # ✅ Save to Excel
+        # Format Date column
+        if "Date" in df.columns:
+            df["Date"] = pd.to_datetime(df["Date"]).dt.date
+
+        # Save to Excel
         file_name = f"{symbol.replace('.NS', '')}.xlsx"
         file_path = os.path.join(save_folder, file_name)
-        df.to_excel(file_path, index=False)
+        df.to_excel(file_path, index=False, engine="openpyxl")
         print(f"✅ Saved data to {file_path}\n")
 
     except Exception as e:

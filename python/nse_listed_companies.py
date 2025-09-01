@@ -32,7 +32,7 @@ try:
     connection = pymysql.connect(
         host="localhost",
         user="root",
-        password="Patil@2000",
+        password="root",
         port=3306,
         connect_timeout=5
     )
