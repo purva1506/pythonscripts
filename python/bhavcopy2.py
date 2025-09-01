@@ -5,7 +5,6 @@ import pandas as pd
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
-import re
 import pymysql
 from sqlalchemy import create_engine
 
@@ -13,25 +12,27 @@ from sqlalchemy import create_engine
 start_date = datetime.strptime("2025-08-01", "%Y-%m-%d")
 end_date = datetime.strptime("2025-08-31", "%Y-%m-%d")
 URL_TEMPLATE = "https://nsearchives.nseindia.com/archives/equities/bhavcopy/pr/PR{date}.zip"
-OUTPUT_DIR = "nse_bhavcopy_output" 
+OUTPUT_DIR = "nse_bhavcopy_output"
 
 # ✅ MySQL configuration
 DB_HOST = 'localhost'
 DB_USER = 'root'
 DB_PASSWORD = 'root'
-DB_NAME = 'bhavco  '
+DB_NAME = 'bhavcopy2'
 DB_PORT = 3306
 
 # ✅ Create database if not exists
 conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, port=DB_PORT)
 cursor = conn.cursor()
-cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME}")
+cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}`")
 conn.commit()
 cursor.close()
 conn.close()
 
 # ✅ Connect to DB using SQLAlchemy
-engine = create_engine(f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+engine = create_engine(
+    f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+)
 
 HEADERS = {
     'accept': '/',
@@ -41,7 +42,7 @@ HEADERS = {
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# ✅ Column cleaner to remove spaces, parentheses, slashes, etc.
+# ✅ Column cleaner
 def clean_column_name(col):
     return (
         col.strip()
@@ -61,7 +62,7 @@ def process_zip_for_date(date_obj):
     try:
         response = requests.get(zip_url, headers=HEADERS, timeout=10)
         if response.status_code != 200:
-            print(f"❌ Failed to fetch {zip_url} (status: {response.status_code})")
+            print(f"⚠ No file for {date_str} (status: {response.status_code})")
             return
 
         zip_bytes = io.BytesIO(response.content)
