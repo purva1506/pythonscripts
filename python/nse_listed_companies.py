@@ -42,16 +42,16 @@ try:
 
     # Create database if not exists
     print("🛠️ Checking/Creating database...")
-    cursor.execute("CREATE DATABASE IF NOT EXISTS stock_market")
+    cursor.execute("CREATE DATABASE IF NOT EXISTS stock_market1")
     cursor.execute("SHOW DATABASES")
     dbs = [row[0] for row in cursor.fetchall()]
-    if "stock_market" in dbs:
-        print("ℹ️ Database 'stock_market' already exists.")
+    if "stock_market1" in dbs:
+        print("ℹ️ Database 'stock_market1' already exists.")
     else:
         print("✅ Database created.")
 
     # Use the database
-    cursor.execute("USE stock_market")
+    cursor.execute("USE stock_market1")
 
     # Create table if not exists
     print("🛠️ Checking/Creating table...")

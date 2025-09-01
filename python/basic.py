@@ -1,4 +1,3 @@
-# print("heyy somebody")
 
 # import requests
 # import time

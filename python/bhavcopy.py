@@ -1,4 +1,3 @@
-
 import requests
 import zipfile
 import io
@@ -10,36 +9,34 @@ import re
 import pymysql
 from sqlalchemy import create_engine, text
 
-
 # --- Config ---
-start_date = datetime.strptime("2002-06-15", "%Y-%m-%d")
-end_date = datetime.strptime("2025-08-01", "%Y-%m-%d")
+start_date = datetime.strptime("2025-08-01", "%Y-%m-%d")
+end_date = datetime.strptime("2025-08-30", "%Y-%m-%d")
 URL_TEMPLATE = "https://nsearchives.nseindia.com/archives/equities/bhavcopy/pr/PR{date}.zip"
 OUTPUT_DIR = "nse_bhavcopy_output"
 
 # ✅ MySQL connection configuration
-DB_HOST = 'localhost'
-DB_USER = 'root'
-DB_PASSWORD = 'root'
-DB_NAME = 'bhavcopy_db'  # Change if you want dynamic naming
+DB_HOST = "localhost"
+DB_USER = "root"
+DB_PASSWORD = "Patil@2000"     # ✅ Correct password
+DB_NAME = "bhavcopy_db"
 DB_PORT = 3306
 
-# ✅ Step 1: Connect to MySQL Server (without specifying DB yet)
+# ✅ Step 1: Connect to MySQL Server (without DB)
 conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, port=DB_PORT)
 cursor = conn.cursor()
-
-# ✅ Step 2: Create Database if not exists
 cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME}")
 conn.commit()
 cursor.close()
 conn.close()
 
-# ✅ Step 3: Connect to the specific database using SQLAlchemy
-engine = create_engine(f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
-
+# ✅ Step 2: Connect to the specific database using SQLAlchemy
+engine = create_engine(
+    f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+)
 
 HEADERS = {
-    'accept': '/',
+    'accept': '*/*',
     'accept-language': 'en-US,en;q=0.9',
     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
 }
@@ -47,48 +44,49 @@ HEADERS = {
 # --- Output folder ---
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+# --- Expected tables ---
+EXPECTED_TABLES = ["bc", "bh", "corpbond", "etf", "ffix", "gl", "hl", "ix", "mcap", "pd", "pr", "sme", "tt"]
+
+# --- Ensure all expected tables exist ---
+with engine.begin() as conn:
+    for tbl in EXPECTED_TABLES:
+        conn.execute(text(f"CREATE TABLE IF NOT EXISTS {tbl} (id INT AUTO_INCREMENT PRIMARY KEY)"))
+
 # --- Process one date's ZIP ---
 def process_zip_for_date(date_obj):
-    date_str = date_obj.strftime("%d%m%y")  # PRYYMMDD
+    date_str = date_obj.strftime("%d%m%y")  # PRDDMMYY
     url = URL_TEMPLATE.format(date=date_str)
-    print(f"Downloading: {url}")
-    
+    print(f"📥 Downloading: {url}")
+
     try:
-        response = requests.get(url, headers=HEADERS, timeout=10)
+        response = requests.get(url, headers=HEADERS, timeout=20)
         if response.status_code == 200:
             zip_bytes = io.BytesIO(response.content)
             with zipfile.ZipFile(zip_bytes) as z:
                 for file_name in z.namelist():
                     if file_name.endswith('.csv'):
-                        base_match = re.match(r"([a-zA-Z]+)\d+\.csv", file_name)
-                        if base_match:
-                            base = base_match.group(1).lower()
+                        # Extract table name (drop date+extension)
+                        base = re.sub(r"\d+\.csv$", "", file_name).lower()
+
+                        if base in EXPECTED_TABLES:
                             try:
                                 with z.open(file_name) as csv_file:
-                                    df = pd.read_csv(csv_file, on_bad_lines='skip')
+                                    df = pd.read_csv(csv_file, on_bad_lines='skip', encoding_errors="ignore")
                                     df['source_date'] = date_obj.date()
                                     df['status'] = "OK"
 
-                                    output_path = os.path.join(OUTPUT_DIR, f"{base}.csv")
-                                    
-                                    # ✅ Step 4: Push data to table (create table if not exists)
+                                    # ✅ Insert into SQL
                                     df.to_sql(name=base, con=engine, if_exists='append', index=False)
 
-                                    print(f"✅ Data inserted into table `{base}` in database `{DB_NAME}`.") 
-
-                                    #set to local
-                                    # if os.path.exists(output_path):
-                                    #     df.to_csv(output_path, mode='a', index=False, header=False)
-                                    # else:
-                                    #     df.to_csv(output_path, index=False)
+                                    print(f"✅ Inserted {len(df)} rows → `{base}` ({date_obj.date()})")
                             except Exception as e:
                                 print(f"⚠ Error reading {file_name} on {date_str}: {e}")
         else:
-            print(f"❌ Failed to fetch {url} (status: {response.status_code}) — skipped")
+            print(f"❌ No data for {date_obj.date()} (status: {response.status_code})")
     except Exception as e:
         print(f"⚠ Exception for {date_str}: {e} — skipped")
 
-# --- Date list ---
+# --- Generate date list ---
 date_list = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
 
 # --- Multithreaded run ---
@@ -97,4 +95,5 @@ with ThreadPoolExecutor(max_workers=5) as executor:
     for future in as_completed(futures):
         future.result()
 
-print(f"\n✅ All available files processed and saved in: {OUTPUT_DIR}")
+print(f"\n✅ All available files processed and saved into MySQL `{DB_NAME}`.")
+print(f"   Tables: {', '.join(EXPECTED_TABLES)}")
